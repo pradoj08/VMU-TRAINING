@@ -147,6 +147,7 @@ function EmptyWorkOrder({
   const [openActionMenu, setOpenActionMenu] = useState<number | null>(null);
   const [direction, setDirection] = useState<"north" | "south">("north");
   const [sequence, setSequence] = useState("Default");
+  const [equipmentFilter, setEquipmentFilter] = useState("");
   const [sequenceMenuOpen, setSequenceMenuOpen] = useState(false);
   const [railcarInquiry, setRailcarInquiry] = useState<{
     railcar: string;
@@ -193,7 +194,9 @@ function EmptyWorkOrder({
   const wellIndex = isCorrect ? 3 : 4;
   const activeRows = displayedRows.filter((row) => {
     if (completedEquipment.has(row[0])) return false;
-    if (sequence === "Tops Only") return row[wellIndex].toUpperCase().includes("T");
+    if (sequence === "Tops Only" && !row[wellIndex].toUpperCase().includes("T")) return false;
+    const equipmentQuery = equipmentFilter.replace(/\s+/g, "").toUpperCase();
+    if (equipmentQuery && !row[0].replace(/\s+/g, "").toUpperCase().includes(equipmentQuery)) return false;
     return true;
   });
   const orderedRows = direction === "north" ? activeRows : [...activeRows].reverse();
@@ -268,6 +271,9 @@ function EmptyWorkOrder({
   }
 
   const expectedChassisNumber = matchChassis?.equipment === "GCXU 520695" ? "255391" : "456231";
+  const topContainerFirstAlert = matchChassis?.equipment === "GCXU 520695"
+    && chassisNumber === "456231"
+    && !completedEquipment.has("GCXU 519814");
 
   return (
     <main className="empty-order-page">
@@ -327,7 +333,19 @@ function EmptyWorkOrder({
         </div>
 
         <div className="empty-filters">
-          <label><span>Equipment ID</span><input aria-label="Equipment ID" /></label>
+          <label className={equipmentFilter ? "has-filter-value" : undefined}>
+            <span>Equipment ID</span>
+            <input
+              aria-label="Equipment ID"
+              autoComplete="off"
+              value={equipmentFilter}
+              onChange={(event) => {
+                setEquipmentFilter(event.target.value);
+                setSelectedRow(null);
+                setOpenActionMenu(null);
+              }}
+            />
+          </label>
           <label><span>Seq St</span><input aria-label="Sequence start" /></label>
           <label><span>Seq End</span><input aria-label="Sequence end" /></label>
           <button
@@ -438,6 +456,14 @@ function EmptyWorkOrder({
             )) : (
               <tr className="no-data-row"><td colSpan={columns.length}>No Data Found</td></tr>
             )}
+            {showData && activeRows.length < displayedRows.length && (
+              <tr className="reserved-work-row-space" aria-hidden="true">
+                <td
+                  colSpan={columns.length}
+                  style={{ height: `${(displayedRows.length - activeRows.length) * 62}px` }}
+                />
+              </tr>
+            )}
           </tbody>
         </table>
         {!isCorrect && showTryAgain && showData && (
@@ -461,14 +487,14 @@ function EmptyWorkOrder({
               {!completedEquipment.has("GCXU 520695") && (
                 <>
                   <img
-                    className="standalone-chassis-layer"
+                    className={`standalone-chassis-layer${matchChassis ? " match-focus-visible" : ""}`}
                     src="/chassis-40-cropped.png"
                     alt="Blue chassis"
                     style={visualStyle("chassis")}
                     onPointerDown={(event) => beginVisualDrag("chassis", event)}
                   />
                   <div
-                    className="tnpz-flag"
+                    className={`tnpz-flag${matchChassis ? " match-focus-visible" : ""}`}
                     style={visualStyle("tnpz-flag")}
                     onPointerDown={(event) => beginVisualDrag("tnpz-flag", event)}
                   >
@@ -640,13 +666,14 @@ function EmptyWorkOrder({
             {!chassisMatched ? (
               <>
                 <div className="chassis-search-row">
-                  <label className="chassis-input">
+                  <label className={`chassis-input${topContainerFirstAlert ? " chassis-input-alert" : ""}`}>
                     <span>Chassis Number</span>
                     <input
                       value={chassisNumber}
                       inputMode="numeric"
                       maxLength={6}
                       aria-describedby="chassis-help"
+                      aria-invalid={topContainerFirstAlert}
                       onChange={(event) => setChassisNumber(event.target.value.replace(/\D/g, "").slice(0, 6))}
                     />
                     <b aria-hidden="true">⌕</b>
@@ -657,6 +684,12 @@ function EmptyWorkOrder({
                   <span>Required: Enter 3 to 6 digits of Chassis Number</span>
                   <b>{chassisNumber.length}/6</b>
                 </div>
+                {topContainerFirstAlert && (
+                  <div className="mate-order-alert" role="alert">
+                    <b aria-hidden="true">!</b>
+                    <strong>Alert: Mate up top container first!</strong>
+                  </div>
+                )}
                 <button className="match-cancel" type="button" onClick={() => setMatchChassis(null)}>CANCEL</button>
               </>
             ) : (
@@ -668,6 +701,7 @@ function EmptyWorkOrder({
                     type="button"
                     onClick={() => {
                       setCompletedEquipment((current) => new Set(current).add(matchChassis.equipment));
+                      if (matchChassis.equipment === "GCXU 519814") setEquipmentFilter("");
                       if (matchChassis.equipment === "GCXU 520695") setShowCompletionSuccess(true);
                       setSelectedRow(null);
                       setOpenActionMenu(null);

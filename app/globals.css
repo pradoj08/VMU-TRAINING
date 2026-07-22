@@ -402,11 +402,12 @@ select {
   width: 58px;
   height: 33px;
   padding: 0;
-  border: 1px solid #003cbe;
+  border: 2px solid #003cbe;
   border-radius: 4px;
   background: transparent;
   color: #00329d;
-  font-size: 13px;
+  font-size: 14px;
+  font-weight: 700;
   cursor: pointer;
 }
 
@@ -1102,9 +1103,22 @@ select {
 .empty-filters input {
   width: 100%;
   height: 100%;
+  padding: 12px 14px 0;
   border: 0;
   background: transparent;
   outline: 0;
+}
+
+.empty-filters label:focus-within span,
+.empty-filters label.has-filter-value span {
+  top: 3px;
+  color: #0038a1;
+  font-size: 10px;
+}
+
+.empty-filters label span {
+  transition: top 120ms ease, font-size 120ms ease, color 120ms ease;
+  pointer-events: none;
 }
 
 .empty-filters > button {
@@ -1185,6 +1199,12 @@ select {
 
 .empty-order-table tbody tr:not(.no-data-row):nth-child(even) td {
   background: #f4f4f4;
+}
+
+.empty-order-table tbody .reserved-work-row-space td {
+  padding: 0;
+  border: 0;
+  background: transparent !important;
 }
 
 .empty-order-table .equipment-number {
@@ -1327,20 +1347,54 @@ select {
 .match-overlay {
   position: fixed;
   inset: 0;
-  z-index: 55;
   display: grid;
   place-items: center;
   padding: 20px;
+  background: transparent;
+  pointer-events: none;
+}
+
+.match-overlay::before {
+  position: fixed;
+  inset: 0;
+  z-index: 55;
   background: rgb(0 0 0 / 34%);
+  content: "";
 }
 
 .match-dialog {
+  position: relative;
+  z-index: 70;
   width: min(690px, 94vw);
   min-height: 414px;
   padding: 18px 22px 20px;
   border-radius: 4px;
   background: #fff;
   box-shadow: 0 14px 32px rgb(0 0 0 / 34%);
+  pointer-events: auto;
+}
+
+.match-focus-visible {
+  z-index: 60 !important;
+  filter: none !important;
+  pointer-events: none;
+}
+
+.tnpz-flag.match-focus-visible {
+  border-color: #f2a000;
+  box-shadow: 0 0 0 5px rgb(242 160 0 / 42%), 0 0 24px 10px rgb(255 183 0 / 58%), 0 6px 16px rgb(0 0 0 / 30%);
+  animation: tnpz-gold-pulse 850ms ease-in-out infinite alternate;
+}
+
+@keyframes tnpz-gold-pulse {
+  from {
+    border-color: #d88a00;
+    box-shadow: 0 0 0 4px rgb(216 138 0 / 38%), 0 0 14px 6px rgb(242 160 0 / 48%), 0 6px 16px rgb(0 0 0 / 30%);
+  }
+  to {
+    border-color: #ffd766;
+    box-shadow: 0 0 0 7px rgb(255 190 25 / 55%), 0 0 32px 14px rgb(255 190 25 / 76%), 0 6px 16px rgb(0 0 0 / 30%);
+  }
 }
 
 .match-dialog h2 {
@@ -1514,6 +1568,48 @@ select {
   right: 14px;
   color: #666;
   font-size: 25px;
+}
+
+.chassis-input.chassis-input-alert {
+  border: 2px solid #e1262f;
+  border-bottom-width: 3px;
+  border-radius: 4px;
+  background: #ffe6e8;
+  box-shadow: 0 0 0 3px rgb(225 38 47 / 12%);
+}
+
+.chassis-input.chassis-input-alert span,
+.chassis-input.chassis-input-alert input,
+.chassis-input.chassis-input-alert b {
+  color: #b30812;
+}
+
+.mate-order-alert {
+  display: flex;
+  width: max-content;
+  max-width: 430px;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 10px 14px;
+  border: 2px solid #e1262f;
+  border-radius: 6px;
+  background: #fff3d8;
+  box-shadow: 0 4px 12px rgb(177 15 25 / 18%);
+  color: #b30812;
+  font-size: 14px;
+}
+
+.mate-order-alert b {
+  display: grid;
+  width: 23px;
+  height: 23px;
+  flex: 0 0 23px;
+  place-items: center;
+  border-radius: 50%;
+  background: #e1262f;
+  color: #fff;
+  font-size: 16px;
 }
 
 .chassis-search-button {
