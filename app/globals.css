@@ -281,6 +281,84 @@ select {
   font-size: 16px;
 }
 
+.shotgun-size-trigger {
+  padding: 8px 12px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  font-family: inherit;
+  font-size: calc(1em + 2px);
+  font-weight: 700;
+}
+
+.shotgun-size-trigger.active {
+  border-color: #f2a000;
+  background: #fff5db;
+  color: #9d5700;
+  box-shadow: 0 0 0 2px rgb(242 160 0 / 18%);
+}
+
+.instruction-size-editing {
+  outline: 2px dashed #f2a000;
+  outline-offset: -3px;
+}
+
+.instruction-size-controls {
+  position: fixed;
+  z-index: 45;
+  right: 20px;
+  bottom: 20px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 12px;
+  border: 1px solid #b9c8dc;
+  border-radius: 6px;
+  background: #fff;
+  box-shadow: 0 5px 15px rgb(0 0 0 / 20%);
+  color: #15325d;
+  font-size: 11px;
+}
+
+.instruction-size-controls button {
+  width: 30px;
+  height: 28px;
+  border: 1px solid #0645a8;
+  border-radius: 3px;
+  background: #fff;
+  color: #0645a8;
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.instruction-size-controls b {
+  min-width: 42px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.instruction-coordinate {
+  padding: 4px 6px;
+  border: 1px solid #b8c7db;
+  border-radius: 3px;
+  background: #f5f8fc;
+  font-size: 10px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.instruction-size-controls .instruction-save-button {
+  width: auto;
+  min-width: 62px;
+  padding: 0 9px;
+  border-color: #168443;
+  background: #eaf6ee;
+  color: #11632f;
+  font-size: 11px;
+}
+
 .work-orders-table th,
 .work-orders-table td {
   height: 66px;
@@ -1044,6 +1122,29 @@ select {
   font-size: 12px;
 }
 
+/* Detail-screen readability increase requested for tablet use. */
+.empty-order-toolbar h1 {
+  font-size: 20px;
+}
+
+.empty-filters label span,
+.empty-filters input,
+.empty-order-table th {
+  font-size: 14px;
+}
+
+.empty-order-table tbody tr:not(.no-data-row) td {
+  font-size: 14px;
+}
+
+.empty-order-table .equipment-number {
+  font-size: 18px !important;
+}
+
+.row-actions button {
+  font-size: 14px;
+}
+
 .empty-order-table th:first-child {
   width: 10%;
 }
@@ -1077,7 +1178,7 @@ select {
   height: 62px;
   border-top: 1px solid #d5d5d5;
   background: #fff;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 400;
   text-align: left;
 }
@@ -1087,7 +1188,7 @@ select {
 }
 
 .empty-order-table .equipment-number {
-  font-size: 16px !important;
+  font-size: 18px !important;
   font-weight: 700 !important;
 }
 
@@ -1280,6 +1381,18 @@ select {
   box-shadow: 0 0 0 3px rgb(215 38 46 / 12%);
 }
 
+.alert-reveal-pill {
+  font: inherit;
+  cursor: pointer;
+}
+
+.alert-reveal-pill:hover,
+.alert-reveal-pill:focus-visible {
+  background: #ffe0e0;
+  outline: 2px solid #d7262e;
+  outline-offset: 2px;
+}
+
 .none-pool-alert {
   position: absolute;
   z-index: 2;
@@ -1296,7 +1409,7 @@ select {
   background: #fff4d7;
   color: #9e0710;
   box-shadow: 0 5px 12px rgb(120 0 0 / 18%);
-  font-size: 12px;
+  font-size: 14px;
   line-height: 1.2;
 }
 
@@ -1338,7 +1451,7 @@ select {
   background: #fff4d7;
   color: #9e0710;
   box-shadow: 0 5px 12px rgb(120 0 0 / 18%);
-  font-size: 12px;
+  font-size: 14px;
   line-height: 1.2;
 }
 
@@ -1525,14 +1638,19 @@ select {
 }
 
 .row-actions button {
+  display: inline-flex;
   height: 33px;
+  align-items: center;
+  justify-content: center;
   min-width: 0;
   padding: 0 11px;
   border: 1px solid #003db3;
   border-radius: 4px;
   background: #fff;
   color: #00369d;
-  font-size: 12px;
+  font-size: 14px;
+  line-height: 1;
+  text-align: center;
 }
 
 .empty-actions {

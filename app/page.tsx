@@ -47,12 +47,12 @@ const FAKE_WORK_ROWS = [
 ];
 
 const CORRECT_WORK_ROWS = [
-  ["EMHU 200479", "1", "DTTX 657068", "BB1", "RETRIEVE", "53", "23078", "DCLI", "DIRT-DIRT,Q-Q,BOWL-BOWL", "Trackside", "CELTICINTLLC"],
-  ["GCXU 519814", "2", "DTTX 785369", "BT1", "RETRIEVE", "40", "23200", "NONE", "DIRT-DIRT,06809-809", "Trackside", "IMCCOMLLC"],
-  ["YMMU 686166", "2", "DTTX 785369", "CB1", "RETRIEVE", "40", "20861", "TGRP", "DIRT-DIRT,06801-801,06802-802", "Trackside", "YANGMINMARLI"],
-  ["TLLU 529077", "2", "DTTX 785369", "DB1", "RETRIEVE", "40", "53588", "TGRP", "DIRT-DIRT,06801-801,06802-802", "Trackside", "HAPAGLLOAMEL"],
-  ["GCXU 520695", "2", "DTTX 785369", "EB1", "RETRIEVE", "40", "20908", "FGCP", "DIRT-DIRT,A-A,D-D", "Trackside", "OCEANNETEXPP"],
-  ["CAAU 574530", "2", "DTTX 785369", "AB1", "RETRIEVE", "40", "65416", "TGRP", "DIRT-DIRT,06801-801,06802-802", "Trackside", "HAPAGLLOAMEL"],
+  ["EMHU 200479", "1", "DTTX 657068", "BB1", "RETRIEVE", "53", "23078", "DCLI", "DIRT - DIRT", "Trackside", "CELTICINTLLC"],
+  ["GCXU 519814", "2", "DTTX 785369", "BT1", "RETRIEVE", "40", "23200", "NONE", "DIRT - DIRT", "Trackside", "IMCCOMLLC"],
+  ["YMMU 686166", "2", "DTTX 785369", "CB1", "RETRIEVE", "40", "20861", "TGRP", "DIRT - DIRT", "Trackside", "YANGMINMARLI"],
+  ["TLLU 529077", "2", "DTTX 785369", "DB1", "RETRIEVE", "40", "53588", "TGRP", "DIRT - DIRT", "Trackside", "HAPAGLLOAMEL"],
+  ["GCXU 520695", "2", "DTTX 785369", "EB1", "RETRIEVE", "40", "20908", "FGCP", "DIRT - DIRT", "Trackside", "OCEANNETEXPP"],
+  ["CAAU 574530", "2", "DTTX 785369", "AB1", "RETRIEVE", "40", "65416", "TGRP", "DIRT - DIRT", "Trackside", "HAPAGLLOAMEL"],
 ];
 
 const SEQUENCE_OPTIONS = [
@@ -71,15 +71,16 @@ type VisualItem = "yard-image" | "chassis" | "tnpz-flag" | "blue-note" | "orange
 type VisualTransform = { x: number; y: number; scale: number };
 
 const DEFAULT_VISUAL_LAYOUT: Record<VisualItem, VisualTransform> = {
-  "yard-image": { x: 0, y: 0, scale: 1 },
-  "chassis": { x: 0, y: 0, scale: 1 },
-  "tnpz-flag": { x: 0, y: 0, scale: 1 },
-  "blue-note": { x: 0, y: 0, scale: 1 },
-  "orange-note": { x: 0, y: 0, scale: 1 },
+  "yard-image": { x: -28, y: 55, scale: 1.4 },
+  "chassis": { x: -87, y: 51, scale: 0.52 },
+  "tnpz-flag": { x: -411, y: 153, scale: 0.44 },
+  "blue-note": { x: -1100, y: 75, scale: 0.84 },
+  "orange-note": { x: -1101, y: 75, scale: 0.84 },
 };
 
-const LAYOUT_STORAGE_KEY = "hostler-training-visual-layout";
+const LAYOUT_STORAGE_KEY = "hostler-training-visual-layout-v6";
 const PANEL_STORAGE_KEY = "hostler-training-editor-position";
+const INSTRUCTION_STORAGE_KEY = "hostler-training-instruction-layout";
 
 function loadStoredValue<T>(key: string, fallback: T): T {
   if (typeof window === "undefined") return fallback;
@@ -172,6 +173,7 @@ function EmptyWorkOrder({
   const [chassisMatched, setChassisMatched] = useState(false);
   const [completedEquipment, setCompletedEquipment] = useState<Set<string>>(() => new Set());
   const [showCompletionSuccess, setShowCompletionSuccess] = useState(false);
+  const [revealedMatchAlerts, setRevealedMatchAlerts] = useState({ pool: false, shipper: false });
   const [layoutEditMode, setLayoutEditMode] = useState(false);
   const [visualLayout, setVisualLayout] = useState(() => loadStoredValue(LAYOUT_STORAGE_KEY, DEFAULT_VISUAL_LAYOUT));
   const [editPanelPosition, setEditPanelPosition] = useState(() => loadStoredValue(PANEL_STORAGE_KEY, { x: 12, y: 12 }));
@@ -182,18 +184,18 @@ function EmptyWorkOrder({
     return () => window.clearTimeout(timer);
   }, []);
 
-  useEffect(() => {
-    window.localStorage.setItem(LAYOUT_STORAGE_KEY, JSON.stringify(visualLayout));
-    window.localStorage.setItem(PANEL_STORAGE_KEY, JSON.stringify(editPanelPosition));
-  }, [visualLayout, editPanelPosition]);
-
   const columns = isCorrect
     ? ["Equipment ID", "Seq", "Railcar ID", "Well", "Type", "Len", "Weight", "Pool", "From Location", "To Location", "Shipper", "Action"]
     : showData
     ? ["Equipment ID", "Chassis ID", "Seq", "Railcar ID", "Well", "Type", "Len", "Weight", "Pool", "From Location", "To Location", "Shipper", "Action"]
     : ["Equipment ID", "Seq", "Railcar ID", "Well", "Type", "Len", "Weight", "Pool", "From Location", "To Location", "Shipper", "Action"];
   const displayedRows = isCorrect ? CORRECT_WORK_ROWS : FAKE_WORK_ROWS;
-  const activeRows = displayedRows.filter((row) => !completedEquipment.has(row[0]));
+  const wellIndex = isCorrect ? 3 : 4;
+  const activeRows = displayedRows.filter((row) => {
+    if (completedEquipment.has(row[0])) return false;
+    if (sequence === "Tops Only") return row[wellIndex].toUpperCase().includes("T");
+    return true;
+  });
   const orderedRows = direction === "north" ? activeRows : [...activeRows].reverse();
 
   function changeDirection(nextDirection: "north" | "south") {
@@ -367,6 +369,7 @@ function EmptyWorkOrder({
                         });
                         setChassisNumber("");
                         setChassisMatched(false);
+                        setRevealedMatchAlerts({ pool: false, shipper: false });
                       } else {
                         setSelectedRow(rowIndex);
                         setOpenActionMenu(null);
@@ -477,14 +480,12 @@ function EmptyWorkOrder({
                 <div className="unit-zoom-card blue-card" style={visualStyle("blue-note")} onPointerDown={(event) => beginVisualDrag("blue-note", event)}>
                   <span>BLUE CONTAINER</span>
                   <strong>GCXU 519814</strong>
-                  <b>45G1</b>
                 </div>
               )}
               {!completedEquipment.has("GCXU 520695") && (
                 <div className="unit-zoom-card orange-card" style={visualStyle("orange-note")} onPointerDown={(event) => beginVisualDrag("orange-note", event)}>
                   <span>ORANGE CONTAINER</span>
                   <strong>GCXU 520695</strong>
-                  <b>45G1</b>
                 </div>
               )}
               {layoutEditMode && (
@@ -592,8 +593,19 @@ function EmptyWorkOrder({
               <dl><dt>Railcar ID</dt><dd>{matchChassis.railcar}</dd></dl>
               <dl className={matchChassis.pool === "NONE" ? "pool-alert-field" : undefined}>
                 <dt>Pool</dt>
-                <dd className={matchChassis.pool === "NONE" ? "pool-none-highlight" : undefined}>{matchChassis.pool}</dd>
-                {matchChassis.pool === "NONE" && (
+                <dd>
+                  {matchChassis.pool === "NONE" ? (
+                    <button
+                      className="pool-none-highlight alert-reveal-pill"
+                      type="button"
+                      aria-expanded={revealedMatchAlerts.pool}
+                      onClick={() => setRevealedMatchAlerts((current) => ({ ...current, pool: !current.pool }))}
+                    >
+                      {matchChassis.pool}
+                    </button>
+                  ) : matchChassis.pool}
+                </dd>
+                {matchChassis.pool === "NONE" && revealedMatchAlerts.pool && (
                   <aside className="none-pool-alert" role="note">
                     <span aria-hidden="true">!</span>
                     <strong>ALERT: NONE POOL USE TRAC CHASSIS</strong>
@@ -604,8 +616,19 @@ function EmptyWorkOrder({
               <dl><dt>Well</dt><dd>{matchChassis.well}</dd></dl>
               <dl className={matchChassis.shipper === "IMCCOMLLC" ? "shipper-alert-field" : undefined}>
                 <dt>Shipper</dt>
-                <dd className={matchChassis.shipper === "IMCCOMLLC" ? "shipper-hotbox-highlight" : undefined}>{matchChassis.shipper}</dd>
-                {matchChassis.shipper === "IMCCOMLLC" && (
+                <dd>
+                  {matchChassis.shipper === "IMCCOMLLC" ? (
+                    <button
+                      className="shipper-hotbox-highlight alert-reveal-pill"
+                      type="button"
+                      aria-expanded={revealedMatchAlerts.shipper}
+                      onClick={() => setRevealedMatchAlerts((current) => ({ ...current, shipper: !current.shipper }))}
+                    >
+                      {matchChassis.shipper}
+                    </button>
+                  ) : matchChassis.shipper}
+                </dd>
+                {matchChassis.shipper === "IMCCOMLLC" && revealedMatchAlerts.shipper && (
                   <aside className="hotbox-alert" role="note">
                     <span aria-hidden="true">!</span>
                     <strong>ALERT: IMCCOMLLC is a HOTBOX park in Row F1-F10</strong>
@@ -693,6 +716,9 @@ function WorkOrders({ onTrainingComplete }: { onTrainingComplete: () => void }) 
     choiceId: string;
   } | null>(null);
   const [showCorrectOrder, setShowCorrectOrder] = useState(false);
+  const [instructionSizeEditing, setInstructionSizeEditing] = useState(false);
+  const [instructionLayout, setInstructionLayout] = useState(() => loadStoredValue(INSTRUCTION_STORAGE_KEY, { x: 0, y: 0, scale: 1 }));
+  const [instructionSaved, setInstructionSaved] = useState(false);
 
   useEffect(() => {
     const timer = window.setTimeout(() => setShowSuccess(true), 3000);
@@ -781,7 +807,16 @@ function WorkOrders({ onTrainingComplete }: { onTrainingComplete: () => void }) 
             <tr>
               <th colSpan={2}>INBOUND</th>
               <th colSpan={3}>OUTBOUND</th>
-              <th rowSpan={2}>SHOTGUN</th>
+              <th rowSpan={2}>
+                <button
+                  className={`shotgun-size-trigger${instructionSizeEditing ? " active" : ""}`}
+                  type="button"
+                  aria-pressed={instructionSizeEditing}
+                  onClick={() => setInstructionSizeEditing((editing) => !editing)}
+                >
+                  SHOTGUN
+                </button>
+              </th>
               <th rowSpan={2}>ALL</th>
             </tr>
             <tr>
@@ -822,13 +857,39 @@ function WorkOrders({ onTrainingComplete }: { onTrainingComplete: () => void }) 
           </tbody>
         </table>
       </div>
-      <figure className="yard-instruction">
+      <figure
+        className={`yard-instruction${instructionSizeEditing ? " instruction-size-editing" : ""}`}
+        style={{ transform: `translate(${instructionLayout.x}px, ${instructionLayout.y}px) scale(${instructionLayout.scale})` }}
+      >
         <img src="/yard-announcer.jpg" alt="Yard worker announcing an assignment" />
         <figcaption>
           <span>YARD INSTRUCTION</span>
           <strong>“INBOUND ON TRACK 802,<br />SET IT UP SOUTH TO NORTH”</strong>
         </figcaption>
       </figure>
+      {instructionSizeEditing && (
+        <div className="instruction-size-controls" role="group" aria-label="Yard instruction size controls">
+          <strong>INSTRUCTION</strong>
+          <span className="instruction-coordinate">X {Math.round(instructionLayout.x)}</span>
+          <span className="instruction-coordinate">Y {Math.round(instructionLayout.y)}</span>
+          <span className="instruction-coordinate">SIZE {Math.round(instructionLayout.scale * 100)}%</span>
+          <button type="button" aria-label="Move instruction left" onClick={() => setInstructionLayout((layout) => ({ ...layout, x: layout.x - 10 }))}>←</button>
+          <button type="button" aria-label="Move instruction right" onClick={() => setInstructionLayout((layout) => ({ ...layout, x: layout.x + 10 }))}>→</button>
+          <button type="button" aria-label="Make instruction smaller" onClick={() => setInstructionLayout((layout) => ({ ...layout, scale: Math.max(0.55, layout.scale - 0.1) }))}>−</button>
+          <button type="button" aria-label="Make instruction larger" onClick={() => setInstructionLayout((layout) => ({ ...layout, scale: Math.min(1.65, layout.scale + 0.1) }))}>+</button>
+          <button
+            className="instruction-save-button"
+            type="button"
+            onClick={() => {
+              window.localStorage.setItem(INSTRUCTION_STORAGE_KEY, JSON.stringify(instructionLayout));
+              setInstructionSaved(true);
+              window.setTimeout(() => setInstructionSaved(false), 1800);
+            }}
+          >
+            {instructionSaved ? "SAVED ✓" : "SAVE"}
+          </button>
+        </div>
+      )}
       {showSuccess && (
         <div className="success-toast" role="status" aria-live="polite">
           <span className="toast-check" aria-hidden="true">✓</span>
