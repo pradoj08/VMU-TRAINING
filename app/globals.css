@@ -702,15 +702,20 @@ select {
 
 .selection-toast.equipment-selection-error {
   position: absolute;
-  top: 82px;
+  top: 5px;
+  right: auto;
+  bottom: auto;
   left: 50%;
   z-index: 70;
+  width: max-content;
+  max-width: calc(100% - 32px);
   margin: 0;
   transform: translateX(-50%);
   pointer-events: none;
 }
 
 .correct-yard-instruction {
+  position: relative;
   display: flex;
   width: min(900px, 94vw);
   min-height: 0;

@@ -627,12 +627,6 @@ function EmptyWorkOrder({
             )}
           </tbody>
         </table>
-        {isCorrect && equipmentSelectionError && (
-          <div className="selection-toast wrong list-try-again equipment-selection-error" role="alert">
-            <span className="selection-icon" aria-hidden="true">×</span>
-            <strong>Incorrect equipment. Select the correct container and try again.</strong>
-          </div>
-        )}
         {!isCorrect && showTryAgain && showData && (
           <div className="selection-toast wrong list-try-again" role="alert">
             <span className="selection-icon" aria-hidden="true">×</span>
@@ -641,6 +635,12 @@ function EmptyWorkOrder({
         )}
         {isCorrect && (
           <figure className="correct-yard-instruction correct-railcar-visual">
+            {equipmentSelectionError && (
+              <div className="selection-toast wrong equipment-selection-error" role="alert">
+                <span className="selection-icon" aria-hidden="true">×</span>
+                <strong>Incorrect equipment. Select the correct container and try again.</strong>
+              </div>
+            )}
             <div className={`railcar-image-stage${layoutEditMode ? " layout-editing" : ""}`}>
               <div
                 className={`railcar-layer-wrapper${selectedVisual === "yard-image" ? " direct-visual-selected" : ""}`}
