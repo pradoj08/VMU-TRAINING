@@ -71,16 +71,24 @@ type VisualItem = "yard-image" | "chassis" | "tnpz-flag" | "blue-note" | "orange
 type VisualTransform = { x: number; y: number; scale: number };
 
 const DEFAULT_VISUAL_LAYOUT: Record<VisualItem, VisualTransform> = {
-  "yard-image": { x: -28, y: 55, scale: 1.4 },
-  "chassis": { x: -87, y: 51, scale: 0.52 },
-  "tnpz-flag": { x: -411, y: 153, scale: 0.44 },
-  "blue-note": { x: -1100, y: 75, scale: 0.84 },
-  "orange-note": { x: -1101, y: 75, scale: 0.84 },
+  "yard-image": { x: -41, y: 125, scale: 1.78 },
+  "chassis": { x: 228, y: 209, scale: 0.79 },
+  "tnpz-flag": { x: -585, y: 271, scale: 0.43 },
+  "blue-note": { x: -474, y: 74, scale: 0.69 },
+  "orange-note": { x: -471, y: 182, scale: 0.69 },
+};
+
+const DEFAULT_CHASSIS_OPTION_LAYOUTS: Record<string, VisualTransform> = {
+  dclz: { x: 228, y: 209, scale: 0.79 },
+  tnpz: { x: 228, y: 209, scale: 0.79 },
+  fxvz: { x: 228, y: 209, scale: 0.79 },
+  sncz: { x: 228, y: 209, scale: 0.79 },
 };
 
 const LAYOUT_STORAGE_KEY = "hostler-training-visual-layout-v6";
 const PANEL_STORAGE_KEY = "hostler-training-editor-position";
 const INSTRUCTION_STORAGE_KEY = "hostler-training-instruction-layout";
+const CHASSIS_LAYOUT_STORAGE_KEY = "hostler-training-chassis-option-layouts";
 
 function loadStoredValue<T>(key: string, fallback: T): T {
   if (typeof window === "undefined") return fallback;
@@ -160,6 +168,14 @@ function EmptyWorkOrder({
       owner: string;
     }>;
   } | null>(null);
+  const [equipmentView, setEquipmentView] = useState<{
+    equipment: string;
+    railcar: string;
+    well: string;
+    length: string;
+    pool: string;
+    shipper: string;
+  } | null>(null);
   const [matchChassis, setMatchChassis] = useState<{
     equipment: string;
     length: string;
@@ -171,18 +187,37 @@ function EmptyWorkOrder({
     sequence: string;
   } | null>(null);
   const [chassisNumber, setChassisNumber] = useState("");
+  const [railcarChassisIndex, setRailcarChassisIndex] = useState(0);
+  const [railcarChassisError, setRailcarChassisError] = useState(false);
   const [chassisMatched, setChassisMatched] = useState(false);
   const [completedEquipment, setCompletedEquipment] = useState<Set<string>>(() => new Set());
   const [showCompletionSuccess, setShowCompletionSuccess] = useState(false);
+  const [showAdHocMove, setShowAdHocMove] = useState(false);
+  const [adHocEquipmentNumber, setAdHocEquipmentNumber] = useState("");
+  const [adHocMoveError, setAdHocMoveError] = useState(false);
   const [revealedMatchAlerts, setRevealedMatchAlerts] = useState({ pool: false, shipper: false });
   const [layoutEditMode, setLayoutEditMode] = useState(false);
+  const [selectedVisual, setSelectedVisual] = useState<VisualItem | null>(null);
   const [visualLayout, setVisualLayout] = useState(() => loadStoredValue(LAYOUT_STORAGE_KEY, DEFAULT_VISUAL_LAYOUT));
+  const [chassisOptionLayouts, setChassisOptionLayouts] = useState(() => loadStoredValue(CHASSIS_LAYOUT_STORAGE_KEY, DEFAULT_CHASSIS_OPTION_LAYOUTS));
   const [editPanelPosition, setEditPanelPosition] = useState(() => loadStoredValue(PANEL_STORAGE_KEY, { x: 12, y: 12 }));
   const [layoutSaved, setLayoutSaved] = useState(false);
 
   useEffect(() => {
     const timer = window.setTimeout(() => setShowTryAgain(false), 5000);
     return () => window.clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    [
+      "/chassis-option-dclz-424751.webp",
+      "/chassis-40-cropped.png",
+      "/chassis-isolated-fxvz-568112.png",
+      "/chassis-isolated-sncz-176119.png",
+    ].forEach((source) => {
+      const image = new Image();
+      image.src = source;
+    });
   }, []);
 
   const columns = isCorrect
@@ -195,6 +230,7 @@ function EmptyWorkOrder({
   const activeRows = displayedRows.filter((row) => {
     if (completedEquipment.has(row[0])) return false;
     if (sequence === "Tops Only" && !row[wellIndex].toUpperCase().includes("T")) return false;
+    if (sequence === "Bottoms Only" && row[wellIndex].toUpperCase().includes("T")) return false;
     const equipmentQuery = equipmentFilter.replace(/\s+/g, "").toUpperCase();
     if (equipmentQuery && !row[0].replace(/\s+/g, "").toUpperCase().includes(equipmentQuery)) return false;
     return true;
@@ -208,6 +244,20 @@ function EmptyWorkOrder({
   }
 
   function changeVisual(item: VisualItem, x: number, y: number, scaleAmount = 0) {
+    if (item === "chassis") {
+      setChassisOptionLayouts((current) => {
+        const value = current[selectedRailcarChassis.id];
+        return {
+          ...current,
+          [selectedRailcarChassis.id]: {
+            x: value.x + x,
+            y: value.y + y,
+            scale: Math.min(2.25, Math.max(0.35, value.scale + scaleAmount)),
+          },
+        };
+      });
+      return;
+    }
     setVisualLayout((current) => ({
       ...current,
       [item]: {
@@ -219,17 +269,29 @@ function EmptyWorkOrder({
   }
 
   function visualStyle(item: VisualItem) {
-    const value = visualLayout[item];
+    const value = item === "chassis" ? chassisOptionLayouts[selectedRailcarChassis.id] : visualLayout[item];
     return { transform: `translate(${value.x}px, ${value.y}px) scale(${value.scale})` };
   }
 
   function beginVisualDrag(item: VisualItem, event: ReactPointerEvent<HTMLElement>) {
     if (!layoutEditMode || (event.target as HTMLElement).closest("button")) return;
     event.preventDefault();
+    setSelectedVisual(item);
     const startX = event.clientX;
     const startY = event.clientY;
-    const initial = visualLayout[item];
+    const initial = item === "chassis" ? chassisOptionLayouts[selectedRailcarChassis.id] : visualLayout[item];
     const move = (pointerEvent: PointerEvent) => {
+      if (item === "chassis") {
+        setChassisOptionLayouts((current) => ({
+          ...current,
+          [selectedRailcarChassis.id]: {
+            ...current[selectedRailcarChassis.id],
+            x: initial.x + pointerEvent.clientX - startX,
+            y: initial.y + pointerEvent.clientY - startY,
+          },
+        }));
+        return;
+      }
       setVisualLayout((current) => ({
         ...current,
         [item]: { ...current[item], x: initial.x + pointerEvent.clientX - startX, y: initial.y + pointerEvent.clientY - startY },
@@ -241,6 +303,51 @@ function EmptyWorkOrder({
     };
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", stop);
+  }
+
+  function beginVisualResize(item: VisualItem, event: ReactPointerEvent<HTMLButtonElement>) {
+    if (!layoutEditMode) return;
+    event.preventDefault();
+    event.stopPropagation();
+    setSelectedVisual(item);
+    const startX = event.clientX;
+    const startY = event.clientY;
+    const initialScale = item === "chassis" ? chassisOptionLayouts[selectedRailcarChassis.id].scale : visualLayout[item].scale;
+    const move = (pointerEvent: PointerEvent) => {
+      const distance = ((pointerEvent.clientX - startX) + (pointerEvent.clientY - startY)) / 260;
+      if (item === "chassis") {
+        setChassisOptionLayouts((current) => ({
+          ...current,
+          [selectedRailcarChassis.id]: {
+            ...current[selectedRailcarChassis.id],
+            scale: Math.min(2.25, Math.max(0.35, initialScale + distance)),
+          },
+        }));
+        return;
+      }
+      setVisualLayout((current) => ({
+        ...current,
+        [item]: { ...current[item], scale: Math.min(2.25, Math.max(0.35, initialScale + distance)) },
+      }));
+    };
+    const stop = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", stop);
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", stop);
+  }
+
+  function resizeHandle(item: VisualItem) {
+    if (!layoutEditMode) return null;
+    return (
+      <button
+        className="direct-resize-handle"
+        type="button"
+        aria-label={`Resize ${item}`}
+        onPointerDown={(event) => beginVisualResize(item, event)}
+      />
+    );
   }
 
   function beginPanelDrag(event: ReactPointerEvent<HTMLElement>) {
@@ -265,12 +372,37 @@ function EmptyWorkOrder({
 
   function saveLayoutSettings() {
     window.localStorage.setItem(LAYOUT_STORAGE_KEY, JSON.stringify(visualLayout));
+    window.localStorage.setItem(CHASSIS_LAYOUT_STORAGE_KEY, JSON.stringify(chassisOptionLayouts));
     window.localStorage.setItem(PANEL_STORAGE_KEY, JSON.stringify(editPanelPosition));
     setLayoutSaved(true);
     window.setTimeout(() => setLayoutSaved(false), 1800);
   }
 
-  const expectedChassisNumber = matchChassis?.equipment === "GCXU 520695" ? "255391" : "456231";
+  function resetVisualLayout() {
+    const resetLayout = Object.fromEntries(
+      Object.entries(DEFAULT_VISUAL_LAYOUT).map(([item, value]) => [item, { ...value }]),
+    ) as Record<VisualItem, VisualTransform>;
+
+    setVisualLayout(resetLayout);
+    const resetChassisLayouts = Object.fromEntries(
+      Object.entries(DEFAULT_CHASSIS_OPTION_LAYOUTS).map(([item, value]) => [item, { ...value }]),
+    );
+    setChassisOptionLayouts(resetChassisLayouts);
+    window.localStorage.setItem(LAYOUT_STORAGE_KEY, JSON.stringify(resetLayout));
+    window.localStorage.setItem(CHASSIS_LAYOUT_STORAGE_KEY, JSON.stringify(resetChassisLayouts));
+  }
+
+  const selectedEquipment = selectedRow === null ? null : orderedRows[selectedRow]?.[0];
+  const targetEquipment = matchChassis?.equipment ?? selectedEquipment;
+  const matchingOrangeContainer = targetEquipment === "GCXU 520695";
+  const expectedChassisNumber = matchingOrangeContainer ? "568112" : "456231";
+  const railcarChassisOptions = [
+    { id: "dclz", number: "DCLZ 424751", image: "/chassis-option-dclz-424751.webp", correct: false },
+    { id: "tnpz", number: "TNPZ 456231", image: "/chassis-40-cropped.png", correct: !matchingOrangeContainer },
+    { id: "fxvz", number: "FXVZ 568112", image: "/chassis-isolated-fxvz-568112.png", correct: matchingOrangeContainer },
+    { id: "sncz", number: "SNCZ 176119", image: "/chassis-isolated-sncz-176119.png", correct: false },
+  ];
+  const selectedRailcarChassis = railcarChassisOptions[railcarChassisIndex];
   const topContainerFirstAlert = matchChassis?.equipment === "GCXU 520695"
     && chassisNumber === "456231"
     && !completedEquipment.has("GCXU 519814");
@@ -406,7 +538,23 @@ function EmptyWorkOrder({
                   </button>
                   {openActionMenu === rowIndex && (
                     <div className="row-action-menu" role="menu">
-                      <button type="button" role="menuitem">View Equipment</button>
+                      <button
+                        type="button"
+                        role="menuitem"
+                        onClick={() => {
+                          setEquipmentView({
+                            equipment: row[0],
+                            railcar: row[isCorrect ? 2 : 3],
+                            well: row[isCorrect ? 3 : 4],
+                            length: row[isCorrect ? 5 : 6],
+                            pool: row[isCorrect ? 7 : 8],
+                            shipper: row.at(-1) ?? "",
+                          });
+                          setOpenActionMenu(null);
+                        }}
+                      >
+                        View Equipment
+                      </button>
                       <button
                         type="button"
                         role="menuitem"
@@ -476,42 +624,79 @@ function EmptyWorkOrder({
           <figure className="correct-yard-instruction correct-railcar-visual">
             <div className={`railcar-image-stage${layoutEditMode ? " layout-editing" : ""}`}>
               <div
-                className="railcar-layer-wrapper"
+                className={`railcar-layer-wrapper${selectedVisual === "yard-image" ? " direct-visual-selected" : ""}`}
                 style={visualStyle("yard-image")}
                 onPointerDown={(event) => beginVisualDrag("yard-image", event)}
               >
                 <img className="railcar-layer" src="/trackside-intermodal.png" alt="Double-stack intermodal railcar" />
                 {completedEquipment.has("GCXU 519814") && <div className="removed-container-mask blue-container-mask" aria-hidden="true"></div>}
                 {completedEquipment.has("GCXU 520695") && <div className="removed-container-mask orange-container-mask" aria-hidden="true"></div>}
+                {resizeHandle("yard-image")}
               </div>
               {!completedEquipment.has("GCXU 520695") && (
                 <>
-                  <img
-                    className={`standalone-chassis-layer${matchChassis ? " match-focus-visible" : ""}`}
-                    src="/chassis-40-cropped.png"
-                    alt="Blue chassis"
+                  <div
+                    className={`standalone-chassis-wrapper${matchChassis ? " match-focus-visible" : ""}${selectedVisual === "chassis" ? " direct-visual-selected" : ""}`}
                     style={visualStyle("chassis")}
                     onPointerDown={(event) => beginVisualDrag("chassis", event)}
-                  />
+                  >
+                    <img
+                      key={selectedRailcarChassis.id}
+                      className="standalone-chassis-layer chassis-swap-enter"
+                      src={selectedRailcarChassis.image}
+                      alt={`Chassis ${selectedRailcarChassis.number}`}
+                    />
+                    {resizeHandle("chassis")}
+                  </div>
                   <div
-                    className={`tnpz-flag${matchChassis ? " match-focus-visible" : ""}`}
+                    className={`tnpz-flag${matchChassis ? " match-focus-visible" : ""}${selectedVisual === "tnpz-flag" ? " direct-visual-selected" : ""}`}
                     style={visualStyle("tnpz-flag")}
                     onPointerDown={(event) => beginVisualDrag("tnpz-flag", event)}
                   >
-                    {completedEquipment.has("GCXU 519814") ? "TNPZ 255391" : "TNPZ 456231"}
+                    {selectedRailcarChassis.number}
+                    {resizeHandle("tnpz-flag")}
                   </div>
                 </>
               )}
+              {!layoutEditMode && (
+                <>
+                  <button
+                    className="railcar-chassis-arrow previous"
+                    type="button"
+                    aria-label="Previous chassis option"
+                    onClick={() => {
+                      setRailcarChassisIndex((index) => (index - 1 + railcarChassisOptions.length) % railcarChassisOptions.length);
+                      setRailcarChassisError(false);
+                    }}
+                  >←</button>
+                  <button
+                    className="railcar-chassis-arrow next"
+                    type="button"
+                    aria-label="Next chassis option"
+                    onClick={() => {
+                      setRailcarChassisIndex((index) => (index + 1) % railcarChassisOptions.length);
+                      setRailcarChassisError(false);
+                    }}
+                  >→</button>
+                  {railcarChassisError && (
+                    <div className="railcar-chassis-status incorrect" role="alert">
+                      <span>Incorrect chassis. Note the chassis pool and try again.</span>
+                    </div>
+                  )}
+                </>
+              )}
               {!completedEquipment.has("GCXU 519814") && (
-                <div className="unit-zoom-card blue-card" style={visualStyle("blue-note")} onPointerDown={(event) => beginVisualDrag("blue-note", event)}>
+                <div className={`unit-zoom-card blue-card${selectedVisual === "blue-note" ? " direct-visual-selected" : ""}`} style={visualStyle("blue-note")} onPointerDown={(event) => beginVisualDrag("blue-note", event)}>
                   <span>BLUE CONTAINER</span>
                   <strong>GCXU 519814</strong>
+                  {resizeHandle("blue-note")}
                 </div>
               )}
               {!completedEquipment.has("GCXU 520695") && (
-                <div className="unit-zoom-card orange-card" style={visualStyle("orange-note")} onPointerDown={(event) => beginVisualDrag("orange-note", event)}>
+                <div className={`unit-zoom-card orange-card${selectedVisual === "orange-note" ? " direct-visual-selected" : ""}`} style={visualStyle("orange-note")} onPointerDown={(event) => beginVisualDrag("orange-note", event)}>
                   <span>ORANGE CONTAINER</span>
                   <strong>GCXU 520695</strong>
+                  {resizeHandle("orange-note")}
                 </div>
               )}
               {layoutEditMode && (
@@ -527,7 +712,7 @@ function EmptyWorkOrder({
                   {([
                     ["yard-image", "YARD IMAGE"],
                     ["chassis", "CHASSIS"],
-                    ["tnpz-flag", "TNPZ FLAG"],
+                    ["tnpz-flag", "CHASSIS LABEL"],
                     ["blue-note", "BLUE TEXT"],
                     ["orange-note", "ORANGE TEXT"],
                   ] as Array<[VisualItem, string]>).map(([item, label]) => (
@@ -535,12 +720,12 @@ function EmptyWorkOrder({
                       key={item}
                       label={label}
                       className={`${item}-controls`}
-                      value={visualLayout[item]}
+                      value={item === "chassis" ? chassisOptionLayouts[selectedRailcarChassis.id] : visualLayout[item]}
                       onMove={(x, y) => changeVisual(item, x, y)}
                       onResize={(amount) => changeVisual(item, 0, 0, amount)}
                     />
                   ))}
-                  <button className="reset-visual-layout" type="button" onClick={() => setVisualLayout(DEFAULT_VISUAL_LAYOUT)}>RESET ALL</button>
+                  <button className="reset-visual-layout" type="button" onClick={resetVisualLayout}>RESET ALL</button>
                   <button className="save-visual-layout" type="button" onClick={saveLayoutSettings}>
                     {layoutSaved ? "SAVED ✓" : "SAVE SETTINGS"}
                   </button>
@@ -562,7 +747,16 @@ function EmptyWorkOrder({
         <button className="work-order-menu" type="button" onClick={onBack}>WORK ORDER MENU</button>
         <button type="button">REPORT MISPLACED</button>
         <button type="button">SHOTGUN</button>
-        <button type="button">MOVE</button>
+        <button
+          type="button"
+          onClick={() => {
+            setAdHocEquipmentNumber("");
+            setAdHocMoveError(false);
+            setShowAdHocMove(true);
+          }}
+        >
+          MOVE
+        </button>
         <button type="button">WORK BY NUMBER</button>
         <button type="button">↻&nbsp; REFRESH</button>
         <button type="button">ENABLE WORK SCREEN</button>
@@ -572,6 +766,99 @@ function EmptyWorkOrder({
         <div className={`selection-toast wrong empty-try-again${!showData ? " zero-try-again" : ""}`} role="alert">
           <span className="selection-icon" aria-hidden="true">×</span>
           <strong>Try again</strong>
+        </div>
+      )}
+      {showAdHocMove && (
+        <div className="ad-hoc-move-overlay" role="dialog" aria-modal="true" aria-labelledby="ad-hoc-move-title">
+          <section className="ad-hoc-move-dialog">
+            <h2 id="ad-hoc-move-title">Ad Hoc Move</h2>
+            <div className="ad-hoc-move-search">
+              <label className={adHocMoveError ? "ad-hoc-field-error" : undefined}>
+                <span>Equipment Number</span>
+                <input
+                  value={adHocEquipmentNumber}
+                  inputMode="numeric"
+                  maxLength={6}
+                  aria-invalid={adHocMoveError}
+                  aria-describedby="ad-hoc-move-help"
+                  onChange={(event) => {
+                    setAdHocEquipmentNumber(event.target.value.replace(/\D/g, "").slice(0, 6));
+                    setAdHocMoveError(false);
+                  }}
+                />
+                <b aria-hidden="true">⌕</b>
+              </label>
+              <button
+                type="button"
+                onClick={() => setAdHocMoveError(adHocEquipmentNumber.length < 3)}
+              >
+                SEARCH
+              </button>
+            </div>
+            <div className={`ad-hoc-move-help${adHocMoveError ? " error" : ""}`} id="ad-hoc-move-help">
+              <span>{adHocMoveError ? "Enter at least 3 digits" : "Required: Enter 3 to 6 digits of Equipment Number"}</span>
+              <b>{adHocEquipmentNumber.length}/6</b>
+            </div>
+            <button className="ad-hoc-move-close" type="button" onClick={() => setShowAdHocMove(false)}>CLOSE</button>
+          </section>
+        </div>
+      )}
+      {equipmentView && (
+        <div className="equipment-view-overlay" role="dialog" aria-modal="true" aria-labelledby="equipment-view-title">
+          <section className="equipment-view-dialog">
+            <header>
+              <h2 id="equipment-view-title">View Equipment</h2>
+              <button type="button" aria-label="Close View Equipment" onClick={() => setEquipmentView(null)}>×</button>
+            </header>
+            <div className="equipment-summary-grid">
+              {[
+                ["Equipment ID", equipmentView.equipment],
+                ["Matched Chassis", "N/A"],
+                ["Shipper", equipmentView.shipper],
+                ["Status", "On Train - Unload Ready"],
+                ["L/E", "Load"],
+                ["TCS Car Kind", "K4E"],
+                ["TCS Car Kind (Chassis)", "N/A"],
+                ["Last Yard Checked", "07/18/2026 12:16"],
+                ["Parking", "N/A"],
+                ["Gross Weight (Tons/Pounds)", "15.3 / 30,534 LBS"],
+                ["Pool", equipmentView.pool],
+                ["Pool (Chassis)", "N/A"],
+                ["Container Outside Length (FT)", equipmentView.length],
+                ["Chassis Outside Length (FT)", "N/A"],
+                ["Flip Authorized", "No"],
+                ["Hold Code", "N/A"],
+                ["Commodity / STCC", "4611110 / 4611110"],
+                ["Arrival Date", "07/15/2026 11:20"],
+                ["Dwell", "9 Hours"],
+                ["Special Condition Code", "COFC,In-Bond,Import Shipment"],
+                ["Chassis Hold Code", "N/A"],
+                ["Yard Block", "HODS"],
+                ["Reefer", "No"],
+                ["Hazardous", "No"],
+                ["Next System Destination", "HOUSTON, TX (B 372)"],
+              ].map(([label, value]) => (
+                <dl key={label}><dt>{label}</dt><dd>{value}</dd></dl>
+              ))}
+            </div>
+            <h3>Equipment Activity</h3>
+            <div className="equipment-activity-scroll">
+              <table>
+                <thead><tr><th>Location</th><th>Status</th><th>Date/Time</th><th>Details</th><th>User</th></tr></thead>
+                <tbody>
+                  {[
+                    ["B 372", "Current Unload", "07/22/2026 00:23", `23-802 / ${equipmentView.railcar} ${equipmentView.well} / ${equipmentView.equipment}`, "NEQ_CEP"],
+                    ["B 372", "Place at Ramp", "07/22/2026 00:22", `23-802 / ${equipmentView.railcar} ${equipmentView.well} / ${equipmentView.equipment}`, "NEQ_CEP"],
+                    ["B 372", "Train Arrival", "07/21/2026 22:43", `${equipmentView.railcar} ${equipmentView.well} / ${equipmentView.equipment}`, "DTOS999"],
+                    ["B 370", "Train Assigned", "07/21/2026 20:40", `${equipmentView.railcar} ${equipmentView.well}`, "DTOS998"],
+                    ["B 370", "Loaded to Railcar", "07/21/2026 18:12", equipmentView.equipment, "RAMP_OPS"],
+                  ].map((activity, index) => (
+                    <tr key={`${activity[1]}-${index}`}>{activity.map((value) => <td key={value}>{value}</td>)}</tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
         </div>
       )}
       {railcarInquiry && (
@@ -678,7 +965,21 @@ function EmptyWorkOrder({
                     />
                     <b aria-hidden="true">⌕</b>
                   </label>
-                  <button className="chassis-search-button" type="button" onClick={() => chassisNumber === expectedChassisNumber && setChassisMatched(true)}>SEARCH</button>
+                  <button
+                    className="chassis-search-button"
+                    type="button"
+                    onClick={() => {
+                      if (!selectedRailcarChassis.correct) {
+                        setMatchChassis(null);
+                        setChassisNumber("");
+                        setRailcarChassisError(true);
+                        return;
+                      }
+                      if (chassisNumber === expectedChassisNumber) setChassisMatched(true);
+                    }}
+                  >
+                    SEARCH
+                  </button>
                 </div>
                 <div className="chassis-help" id="chassis-help">
                   <span>Required: Enter 3 to 6 digits of Chassis Number</span>
@@ -694,7 +995,7 @@ function EmptyWorkOrder({
               </>
             ) : (
               <div className="matched-chassis-confirmation">
-                <p><strong>Chassis ID:</strong> TNPZ {expectedChassisNumber} <span aria-hidden="true">✎</span></p>
+                <p><strong>Chassis ID:</strong> {selectedRailcarChassis.number} <span aria-hidden="true">✎</span></p>
                 <div>
                   <button
                     className="matched-complete"
@@ -707,6 +1008,8 @@ function EmptyWorkOrder({
                       setOpenActionMenu(null);
                       setMatchChassis(null);
                       setChassisMatched(false);
+                      setRailcarChassisIndex(0);
+                      setRailcarChassisError(false);
                     }}
                   >
                     COMPLETE
@@ -775,6 +1078,49 @@ function WorkOrders({ onTrainingComplete }: { onTrainingComplete: () => void }) 
     const timer = window.setTimeout(() => setSelectionMessage(null), 3000);
     return () => window.clearTimeout(timer);
   }, [selectionMessage]);
+
+  function beginInstructionResize(event: ReactPointerEvent<HTMLButtonElement>) {
+    event.preventDefault();
+    event.stopPropagation();
+    const startX = event.clientX;
+    const startY = event.clientY;
+    const initialScale = instructionLayout.scale;
+    const move = (pointerEvent: PointerEvent) => {
+      const distance = ((pointerEvent.clientX - startX) + (pointerEvent.clientY - startY)) / 260;
+      setInstructionLayout((layout) => ({
+        ...layout,
+        scale: Math.min(1.65, Math.max(0.55, initialScale + distance)),
+      }));
+    };
+    const stop = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", stop);
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", stop);
+  }
+
+  function beginInstructionDrag(event: ReactPointerEvent<HTMLElement>) {
+    if (!instructionSizeEditing || (event.target as HTMLElement).closest("button")) return;
+    event.preventDefault();
+    const startX = event.clientX;
+    const startY = event.clientY;
+    const initialX = instructionLayout.x;
+    const initialY = instructionLayout.y;
+    const move = (pointerEvent: PointerEvent) => {
+      setInstructionLayout((layout) => ({
+        ...layout,
+        x: initialX + pointerEvent.clientX - startX,
+        y: initialY + pointerEvent.clientY - startY,
+      }));
+    };
+    const stop = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", stop);
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", stop);
+  }
 
   function selectOrder(choiceId: string, count: number) {
     setShowSuccess(false);
@@ -894,12 +1240,23 @@ function WorkOrders({ onTrainingComplete }: { onTrainingComplete: () => void }) 
       <figure
         className={`yard-instruction${instructionSizeEditing ? " instruction-size-editing" : ""}`}
         style={{ transform: `translate(${instructionLayout.x}px, ${instructionLayout.y}px) scale(${instructionLayout.scale})` }}
+        onPointerDown={beginInstructionDrag}
       >
-        <img src="/yard-announcer.jpg" alt="Yard worker announcing an assignment" />
+        <div className="yard-announcer-crop">
+          <img src="/yard-announcer.jpg" alt="Yard worker announcing an assignment" />
+        </div>
         <figcaption>
           <span>YARD INSTRUCTION</span>
           <strong>“INBOUND ON TRACK 802,<br />SET IT UP SOUTH TO NORTH”</strong>
         </figcaption>
+        {instructionSizeEditing && (
+          <button
+            className="yard-instruction-resize-handle"
+            type="button"
+            aria-label="Resize yard instruction"
+            onPointerDown={beginInstructionResize}
+          />
+        )}
       </figure>
       {instructionSizeEditing && (
         <div className="instruction-size-controls" role="group" aria-label="Yard instruction size controls">
