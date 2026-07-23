@@ -89,6 +89,7 @@ const LAYOUT_STORAGE_KEY = "hostler-training-visual-layout-v6";
 const PANEL_STORAGE_KEY = "hostler-training-editor-position";
 const INSTRUCTION_STORAGE_KEY = "hostler-training-instruction-layout";
 const CHASSIS_LAYOUT_STORAGE_KEY = "hostler-training-chassis-option-layouts";
+const HOSTLER_LAYOUT_STORAGE_KEY = "hostler-training-login-hostler-layout";
 
 function loadStoredValue<T>(key: string, fallback: T): T {
   if (typeof window === "undefined") return fallback;
@@ -187,10 +188,12 @@ function EmptyWorkOrder({
     sequence: string;
   } | null>(null);
   const [chassisNumber, setChassisNumber] = useState("");
+  const [chassisNumberError, setChassisNumberError] = useState(false);
   const [railcarChassisIndex, setRailcarChassisIndex] = useState(0);
   const [railcarChassisError, setRailcarChassisError] = useState(false);
   const [chassisMatched, setChassisMatched] = useState(false);
   const [completedEquipment, setCompletedEquipment] = useState<Set<string>>(() => new Set());
+  const [equipmentSelectionError, setEquipmentSelectionError] = useState(false);
   const [showCompletionSuccess, setShowCompletionSuccess] = useState(false);
   const [showAdHocMove, setShowAdHocMove] = useState(false);
   const [adHocEquipmentNumber, setAdHocEquipmentNumber] = useState("");
@@ -507,6 +510,14 @@ function EmptyWorkOrder({
                     aria-pressed={selectedRow === rowIndex}
                     onClick={() => {
                       if (selectedRow === rowIndex) {
+                        const expectedEquipment = completedEquipment.has("GCXU 519814")
+                          ? "GCXU 520695"
+                          : "GCXU 519814";
+                        if (row[0] !== expectedEquipment) {
+                          setEquipmentSelectionError(true);
+                          return;
+                        }
+                        setEquipmentSelectionError(false);
                         setMatchChassis({
                           equipment: row[0],
                           sequence: row[isCorrect ? 1 : 2],
@@ -518,9 +529,11 @@ function EmptyWorkOrder({
                           shipper: row.at(-1) ?? "",
                         });
                         setChassisNumber("");
+                        setChassisNumberError(false);
                         setChassisMatched(false);
                         setRevealedMatchAlerts({ pool: false, shipper: false });
                       } else {
+                        setEquipmentSelectionError(false);
                         setSelectedRow(rowIndex);
                         setOpenActionMenu(null);
                       }
@@ -538,6 +551,19 @@ function EmptyWorkOrder({
                   </button>
                   {openActionMenu === rowIndex && (
                     <div className="row-action-menu" role="menu">
+                      {selectedRow === rowIndex && (
+                        <button
+                          className="unselect-menu-item"
+                          type="button"
+                          role="menuitem"
+                          onClick={() => {
+                            setSelectedRow(null);
+                            setOpenActionMenu(null);
+                          }}
+                        >
+                          Unselect
+                        </button>
+                      )}
                       <button
                         type="button"
                         role="menuitem"
@@ -584,19 +610,6 @@ function EmptyWorkOrder({
                       </button>
                       <button type="button" role="menuitem">Report Misplaced</button>
                       <button type="button" role="menuitem">Report Railcar Issue</button>
-                      {selectedRow === rowIndex && (
-                        <button
-                          className="unselect-menu-item"
-                          type="button"
-                          role="menuitem"
-                          onClick={() => {
-                            setSelectedRow(null);
-                            setOpenActionMenu(null);
-                          }}
-                        >
-                          Unselect
-                        </button>
-                      )}
                     </div>
                   )}
                 </td>
@@ -614,6 +627,12 @@ function EmptyWorkOrder({
             )}
           </tbody>
         </table>
+        {isCorrect && equipmentSelectionError && (
+          <div className="selection-toast wrong list-try-again equipment-selection-error" role="alert">
+            <span className="selection-icon" aria-hidden="true">×</span>
+            <strong>Incorrect equipment. Select the correct container and try again.</strong>
+          </div>
+        )}
         {!isCorrect && showTryAgain && showData && (
           <div className="selection-toast wrong list-try-again" role="alert">
             <span className="selection-icon" aria-hidden="true">×</span>
@@ -953,15 +972,18 @@ function EmptyWorkOrder({
             {!chassisMatched ? (
               <>
                 <div className="chassis-search-row">
-                  <label className={`chassis-input${topContainerFirstAlert ? " chassis-input-alert" : ""}`}>
+                  <label className={`chassis-input${topContainerFirstAlert || chassisNumberError ? " chassis-input-alert" : ""}`}>
                     <span>Chassis Number</span>
                     <input
                       value={chassisNumber}
                       inputMode="numeric"
                       maxLength={6}
                       aria-describedby="chassis-help"
-                      aria-invalid={topContainerFirstAlert}
-                      onChange={(event) => setChassisNumber(event.target.value.replace(/\D/g, "").slice(0, 6))}
+                      aria-invalid={topContainerFirstAlert || chassisNumberError}
+                      onChange={(event) => {
+                        setChassisNumber(event.target.value.replace(/\D/g, "").slice(0, 6));
+                        setChassisNumberError(false);
+                      }}
                     />
                     <b aria-hidden="true">⌕</b>
                   </label>
@@ -975,14 +997,19 @@ function EmptyWorkOrder({
                         setRailcarChassisError(true);
                         return;
                       }
-                      if (chassisNumber === expectedChassisNumber) setChassisMatched(true);
+                      if (chassisNumber === expectedChassisNumber) {
+                        setChassisNumberError(false);
+                        setChassisMatched(true);
+                      } else {
+                        setChassisNumberError(true);
+                      }
                     }}
                   >
                     SEARCH
                   </button>
                 </div>
-                <div className="chassis-help" id="chassis-help">
-                  <span>Required: Enter 3 to 6 digits of Chassis Number</span>
+                <div className={`chassis-help${chassisNumberError ? " chassis-help-error" : ""}`} id="chassis-help">
+                  <span>{chassisNumberError ? "Incorrect chassis number. Check the chassis and try again." : "Required: Enter 3 to 6 digits of Chassis Number"}</span>
                   <b>{chassisNumber.length}/6</b>
                 </div>
                 {topContainerFirstAlert && (
@@ -1312,6 +1339,49 @@ export default function Home() {
   const [locationError, setLocationError] = useState(false);
   const [equipmentError, setEquipmentError] = useState(false);
   const [hasAdvanced, setHasAdvanced] = useState(false);
+  const [hostlerEditing, setHostlerEditing] = useState(false);
+  const [hostlerSaved, setHostlerSaved] = useState(false);
+  const [hostlerLayout, setHostlerLayout] = useState(() => loadStoredValue(HOSTLER_LAYOUT_STORAGE_KEY, { x: 0, y: 0, scale: 1 }));
+
+  function beginHostlerDrag(event: ReactPointerEvent<HTMLElement>) {
+    if (!hostlerEditing || (event.target as HTMLElement).closest("button")) return;
+    event.preventDefault();
+    const startX = event.clientX;
+    const startY = event.clientY;
+    const initial = hostlerLayout;
+    const move = (pointerEvent: PointerEvent) => {
+      setHostlerLayout((layout) => ({
+        ...layout,
+        x: initial.x + pointerEvent.clientX - startX,
+        y: initial.y + pointerEvent.clientY - startY,
+      }));
+    };
+    const stop = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", stop);
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", stop);
+  }
+
+  function beginHostlerResize(event: ReactPointerEvent<HTMLButtonElement>) {
+    event.preventDefault();
+    event.stopPropagation();
+    const startX = event.clientX;
+    const initialScale = hostlerLayout.scale;
+    const move = (pointerEvent: PointerEvent) => {
+      setHostlerLayout((layout) => ({
+        ...layout,
+        scale: Math.max(0.45, Math.min(2.2, initialScale + (pointerEvent.clientX - startX) / 300)),
+      }));
+    };
+    const stop = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", stop);
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", stop);
+  }
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -1344,7 +1414,16 @@ export default function Home() {
   return (
     <main className="login-page">
       <section className="bulletins" aria-labelledby="bulletin-heading">
-        <h1 id="bulletin-heading">Bulletin Messages</h1>
+        <h1 id="bulletin-heading">
+          <button
+            className={hostlerEditing ? "bulletin-layout-trigger active" : "bulletin-layout-trigger"}
+            type="button"
+            aria-pressed={hostlerEditing}
+            onClick={() => setHostlerEditing((editing) => !editing)}
+          >
+            Bulletin Messages
+          </button>
+        </h1>
       </section>
 
       <div className="divider" aria-hidden="true" />
@@ -1408,12 +1487,42 @@ export default function Home() {
           </form>
         </div>
 
-        <figure className="hostler-photo">
+        <figure
+          className={`hostler-photo${hostlerEditing ? " hostler-photo-editing" : ""}`}
+          style={{ transform: `translate(${hostlerLayout.x}px, ${hostlerLayout.y}px) scale(${hostlerLayout.scale})` }}
+          onPointerDown={beginHostlerDrag}
+        >
           <img
             src="/hostler-112389.png"
             alt="White hostler vehicle numbered 112389"
           />
+          {hostlerEditing && (
+            <button
+              className="hostler-resize-handle"
+              type="button"
+              aria-label="Resize hostler image"
+              onPointerDown={beginHostlerResize}
+            />
+          )}
         </figure>
+        {hostlerEditing && (
+          <div className="hostler-layout-controls" role="group" aria-label="Hostler image layout controls">
+            <strong>HOSTLER IMAGE</strong>
+            <span>X {Math.round(hostlerLayout.x)}</span>
+            <span>Y {Math.round(hostlerLayout.y)}</span>
+            <span>SIZE {Math.round(hostlerLayout.scale * 100)}%</span>
+            <button
+              type="button"
+              onClick={() => {
+                window.localStorage.setItem(HOSTLER_LAYOUT_STORAGE_KEY, JSON.stringify(hostlerLayout));
+                setHostlerSaved(true);
+                window.setTimeout(() => setHostlerSaved(false), 1800);
+              }}
+            >
+              {hostlerSaved ? "SAVED ✓" : "SAVE"}
+            </button>
+          </div>
+        )}
       </section>
     </main>
   );
